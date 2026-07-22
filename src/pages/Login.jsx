@@ -266,7 +266,7 @@ const Login = () => {
 
           <div className="text-center mt-8">
 
-           <div className="mt-6 mb-2 text-center">
+            <div className="mt-6 mb-2 text-center flex justify-center ">
             <GoogleAuthButton onError={(msg) => toast.error(msg)} />
           </div>
             <p className="text-gray-500 mt-4">

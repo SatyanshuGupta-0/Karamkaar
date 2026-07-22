@@ -8,10 +8,15 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 // Drop this in on Login or Signup. It renders Google's own button
 // (so it looks right and stays compliant with their branding rules)
 // and on success posts the id_token straight to /user/google-auth.
-const GoogleAuthButton = ({ onError }) => {
+//
+// `role`: "USER" (default) or "PROVIDER". Only matters the first time
+// this Google account signs up — pass role="PROVIDER" on your
+// Provider signup page so a brand-new account gets created with the
+// PROVIDER role too. If the Google account already has an account
+// with us, this is ignored server-side (existing role is kept).
+const GoogleAuthButton = ({ onError, role }) => {
   const navigate = useNavigate();
   const buttonRef = useRef(null);
-
   useEffect(() => {
     if (!CLIENT_ID || CLIENT_ID.includes("your_google_client_id")) {
       // Not configured — silently skip rendering rather than crash.
@@ -29,7 +34,6 @@ const GoogleAuthButton = ({ onError }) => {
       window.google.accounts.id.renderButton(buttonRef.current, {
         theme: "outline",
         size: "large",
-        
         text: "continue_with",
       });
     };
@@ -38,6 +42,7 @@ const GoogleAuthButton = ({ onError }) => {
       try {
         const result = await post("/user/google-auth", {
           token: response.credential,
+          role, // "USER" or "PROVIDER" — used only on first-time signup
         });
 
         const { accessToken, refreshToken, user } = result.data || {};
@@ -45,6 +50,7 @@ const GoogleAuthButton = ({ onError }) => {
         localStorage.setItem("accessToken", accessToken);
         localStorage.setItem("refreshToken", refreshToken);
         localStorage.setItem("user", JSON.stringify(user));
+        if (user?.email) localStorage.setItem("userEmail", user.email);
 
         const isDualRole =
           user?.role?.includes("USER") && user?.role?.includes("PROVIDER");
@@ -79,7 +85,7 @@ const GoogleAuthButton = ({ onError }) => {
       }, 200);
       return () => clearInterval(interval);
     }
-  }, [navigate, onError]);
+  }, [navigate, onError, role]);
 
   if (!CLIENT_ID || CLIENT_ID.includes("your_google_client_id")) {
     return (
@@ -90,7 +96,11 @@ const GoogleAuthButton = ({ onError }) => {
     );
   }
 
-  return <div ref={buttonRef} className=" justify-center" />;
+  return (
+    <div className="w-full flex justify-center items-center">
+      <div ref={buttonRef}></div>
+    </div>
+  );
 };
 
 export default GoogleAuthButton;
