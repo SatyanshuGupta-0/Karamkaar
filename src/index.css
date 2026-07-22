@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* Permanent labels above the customer/provider markers on the
+   tracking map — overrides Leaflet's default plain white tooltip
+   box so it reads as a clean pill instead. */
+.tracking-marker-label {
+  background: #0f172a !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  padding: 2px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25) !important;
+}
+.tracking-marker-label::before {
+  border-top-color: #0f172a !important;
+}
+.tracking-marker-label--customer {
+  background: #2563eb !important;
+}
+.tracking-marker-label--customer::before {
+  border-top-color: #2563eb !important;
+}
+.tracking-marker-label--provider {
+  background: #16a34a !important;
+}
+.tracking-marker-label--provider::before {
+  border-top-color: #16a34a !important;
+}
+.tracking-marker-label--address {
+  background: #475569 !important;
+}
+.tracking-marker-label--address::before {
+  border-top-color: #475569 !important;
+}
+
+@keyframes trackingPulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* leaflet-routing-machine's itinerary panel (turn-by-turn text box)
+   keeps rendering even with the `show: false` control option — force
+   it off entirely since we only want the route line on the map. */
+.leaflet-routing-container,
+.leaflet-routing-alt,
+.leaflet-routing-geocoders {
+  display: none !important;
+}

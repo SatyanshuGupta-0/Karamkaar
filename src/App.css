@@ -1,0 +1,14 @@
+.react-tel-input .selected-flag:hover,
+.react-tel-input .selected-flag:focus {
+  background: transparent !important;
+}
+
+.react-tel-input .flag-dropdown {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 12px 0 0 12px;
+}
+
+.react-tel-input .selected-flag {
+  background: transparent !important;
+}
