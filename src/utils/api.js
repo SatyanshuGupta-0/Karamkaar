@@ -1,72 +1,106 @@
 import axios from "axios";
 
 const apiUrl = import.meta.env.VITE_API_URL;
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true,
 
+const api = axios.create({
+  baseURL: apiUrl,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+// Plain instance, NO interceptors attached.
+// Used only for the refresh-token call so its response never
+// re-triggers the 401 handler below (that's what caused the loop).
+const rawApi = axios.create({
+  baseURL: apiUrl,
+  withCredentials: true,
 });
 
 // Request Interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("accessToken");
-
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
     return config;
   },
   (error) => Promise.reject(error)
 );
 
+// --- Concurrency control -----------------------------------------
+// If several requests 401 at the same time (e.g. 3 API calls fire
+// together right when the token expires), we don't want 3 separate
+// refresh-token calls racing each other. All but the first just wait
+// for the in-flight refresh to finish and reuse its result.
+let isRefreshing = false;
+let refreshWaiters = [];
+
+const resolveWaiters = (token) => {
+  refreshWaiters.forEach((resolve) => resolve(token));
+  refreshWaiters = [];
+};
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+
+    // Never try to "refresh" the refresh-token endpoint itself —
+    // that was the direct cause of the infinite loop.
+    const isRefreshCall = originalRequest?.url?.includes("/refresh-token");
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isRefreshCall
+    ) {
       originalRequest._retry = true;
 
-      try {
-        // No need to get refresh token manually from cookies
-        // Just send request with credentials
-        const refreshRes = await api.post(`${apiUrl}/user/refresh-token`, {
-          withCredentials: true, // ✅ Must include cookies
+      if (isRefreshing) {
+        // Wait for the in-flight refresh instead of starting a new one.
+        const newToken = await new Promise((resolve) => {
+          refreshWaiters.push(resolve);
         });
+        if (!newToken) return Promise.reject(error);
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      }
 
-        const newAccessToken = refreshRes.data.data.accessToken;
+      isRefreshing = true;
 
+      try {
+        // IMPORTANT: rawApi, not api — no interceptors, so a 401
+        // here just rejects normally instead of looping.
+        const refreshRes = await rawApi.post("/user/refresh-token");
 
-        // Save new access token
+        const newAccessToken = refreshRes.data?.data?.accessToken;
+        if (!newAccessToken) throw new Error("No accessToken in refresh response");
+
         localStorage.setItem("accessToken", newAccessToken);
+        resolveWaiters(newAccessToken);
 
-        // Retry original request with new access token
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
-
       } catch (err) {
-        
         console.error("🔁 Token refresh failed:", err);
-
         localStorage.removeItem("accessToken");
+        resolveWaiters(null);
 
-        // Optional redirect to login
+        // Uncomment if you want a hard redirect on refresh failure:
         // window.location.href = "/login";
 
         return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
       }
     }
 
     return Promise.reject(error);
   }
 );
-
-
-
 
 // GET
 export const get = async (url, params = {}) => {
@@ -98,8 +132,7 @@ export const remove = async (url) => {
   return response.data;
 };
 
-// FILE UPLOAD (multipart/form-data) — for avatar, provider documents, etc.
-// formData must already be a FormData instance.
+// FILE UPLOAD (multipart/form-data)
 export const uploadFile = async (url, formData, onProgress) => {
   const response = await api.post(url, formData, {
     headers: { "Content-Type": "multipart/form-data" },

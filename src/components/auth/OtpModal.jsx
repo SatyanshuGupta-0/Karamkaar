@@ -10,19 +10,20 @@ const EMPTY_OTP = ["", "", "", "", "", ""];
 
 /**
  * OTP verification modal — works for both mobile and email, shown
- * over whatever page triggered it (signup, edit-profile verify,
- * etc.) — the caller never navigates away. Built against
- * utils/otpService.js so swapping the actual SMS/email provider
- * never touches this file.
+ * over whatever page triggered it (signup, edit-profile verify, etc.).
  *
  * `channel`: "mobile" (default) or "email".
- * `destination`: the phone number or email address the code was
- * sent to. `mobile` is kept as an alias for `destination` so
- * existing mobile-only callers (e.g. Signup) don't need to change.
+ * `destination`: the phone number or email address the code was sent
+ * to. `mobile` is kept as an alias for `destination`.
+ *
+ * If neither `destination` nor `mobile` is passed and channel is
+ * "email", this falls back to localStorage("userEmail") — mirroring
+ * the old working OtpVerification.jsx flow, so this still works even
+ * if the caller (Signup) forgets to pass the prop correctly.
  */
 const OtpModal = ({
   open,
-  channel = "mobile",
+  channel = "email",
   destination,
   mobile,
   autoSend = false,
@@ -31,7 +32,11 @@ const OtpModal = ({
   title,
 }) => {
   const { toast } = useToast();
-  const target = destination || mobile;
+  const target =
+    destination ||
+    mobile ||
+    (channel === "email" ? localStorage.getItem("userEmail") : null);
+
   const [otp, setOtp] = useState(EMPTY_OTP);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
@@ -42,12 +47,6 @@ const OtpModal = ({
 
   const inputRefs = useRef([]);
 
-  // Reset to a clean slate every time the modal opens for a new
-  // verification (e.g. re-opened for a different mobile number).
-  // When autoSend is set, this modal is responsible for triggering
-  // the first OTP itself (Edit Profile's "Verify" button has nothing
-  // upstream that already sent one — unlike Signup, where the
-  // backend sends it as part of registration).
   useEffect(() => {
     if (!open) return;
     setOtp(EMPTY_OTP);
@@ -75,7 +74,6 @@ const OtpModal = ({
     if (!/^\d*$/.test(value)) return;
 
     if (value.length > 1) {
-      // Pasted or autofilled multiple digits at once.
       const pasted = value.slice(0, 6).split("");
       const next = [...EMPTY_OTP];
       pasted.forEach((digit, i) => (next[i] = digit));
@@ -117,6 +115,12 @@ const OtpModal = ({
 
   const handleVerify = async (code) => {
     if (verifying) return;
+
+    if (!target) {
+      toast.error("Missing email/mobile — please go back and try again");
+      return;
+    }
+
     setVerifying(true);
     try {
       await verifyOtp(channel, target, code);
@@ -137,9 +141,6 @@ const OtpModal = ({
     }
   };
 
-  // Auto-verify the moment all 6 digits are in — no separate tap
-  // needed, but the Verify button below still works for anyone who
-  // types the last digit and expects to press something.
   useEffect(() => {
     const code = otp.join("");
     if (code.length === 6 && !verifying && !success) handleVerify(code);
@@ -188,7 +189,7 @@ const OtpModal = ({
           ) : (
             <>
               Enter the 6-digit code sent to{" "}
-              <span className="font-medium text-slate-700">{target}</span>
+                  <span className="font-medium text-slate-700">{target || "—"}</span>
             </>
           )}
         </p>

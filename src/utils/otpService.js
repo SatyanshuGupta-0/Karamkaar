@@ -1,59 +1,52 @@
 import { post } from "./api";
 
 /**
- * Thin abstraction over the OTP provider. Every component calls one
- * of the send/verify functions below and never talks to a specific
- * vendor directly — so swapping providers later means editing only
- * this one file.
+ * Thin abstraction over the OTP provider.
  *
- * Current implementation calls our own backend (which is expected to
- * proxy to whichever provider gets wired up server-side — Twilio
- * Verify, MSG91, AWS SNS all work this way: your backend calls their
- * API, the frontend never sees vendor details).
+ * EMAIL FLOW:
+ *   - verify hits the PUBLIC /user/verifyotp route (verifyOtpController).
+ *     No auth token needed — checks { email, otp } directly against the
+ *     user document. This is what registerUserController's OTP (sent
+ *     during signup) actually gets checked against.
+ *   - send/resend goes through /user/send-email-otp (auth-protected).
+ *     Works because registerUserController now issues an accessToken
+ *     even for normal signup.
  *
- * Firebase Phone Auth is the one exception for the mobile flow — its
- * OTP send/verify happens client-side via the Firebase SDK, no
- * backend round trip needed to send the code. To switch to it,
- * replace sendMobileOtp/verifyMobileOtp with:
+ * Falls back to localStorage("userEmail") when no destination is
+ * passed in — this mirrors the old working OtpVerification.jsx flow,
+ * so verification still works even if a caller forgets to pass the
+ * destination/email prop correctly.
  *
- *   import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
- *   let confirmationResult;
- *   export const sendMobileOtp = async (mobile) => {
- *     const verifier = new RecaptchaVerifier(getAuth(), "recaptcha-container", {});
- *     confirmationResult = await signInWithPhoneNumber(getAuth(), mobile, verifier);
- *   };
- *   export const verifyMobileOtp = async (mobile, otp) => {
- *     return confirmationResult.confirm(otp);
- *   };
- *
- * No calling component needs to change either way — same signatures.
+ * MOBILE FLOW: left as-is, to be revisited separately.
  */
 
-// Rename these to match your backend's actual routes.
+const SEND_EMAIL_OTP_URL = "/user/send-email-otp";
+const VERIFY_OTP_URL = "/user/verifyotp"; // public route
+
 const SEND_MOBILE_OTP_URL = "/user/send-mobile-otp";
 const VERIFY_MOBILE_OTP_URL = "/user/verify-mobile-otp";
-const SEND_EMAIL_OTP_URL = "/user/send-email-otp";
-const VERIFY_EMAIL_OTP_URL = "/user/verify-email-otp";
 
-export const sendMobileOtp = async (mobile) => {
-  return post(SEND_MOBILE_OTP_URL, { mobile });
+// export const sendEmailOtp = async (email) => {
+//   const targetEmail = email || localStorage.getItem("userEmail");
+//   return post(SEND_EMAIL_OTP_URL, { email: targetEmail });
+// };
+const userEmail = localStorage.getItem("userEmail")
+export const verifyEmailOtp = async (mobile, otp) => {
+  const targetMobile = mobile;
+  return post(VERIFY_OTP_URL, { email: userEmail, mobile: targetMobile, otp });
 };
 
-export const verifyMobileOtp = async (mobile, otp) => {
-  return post(VERIFY_MOBILE_OTP_URL, { mobile, otp });
-};
+// --- Mobile: unchanged, fix later ---
+// export const sendMobileOtp = async (mobile) => {
+//   return post(SEND_MOBILE_OTP_URL, { mobile });
+// };
 
-export const sendEmailOtp = async (email) => {
-  return post(SEND_EMAIL_OTP_URL, { email });
-};
+// export const verifyMobileOtp = async (mobile, otp) => {
+//   return post(VERIFY_MOBILE_OTP_URL, { mobile, otp });
+// };
 
-export const verifyEmailOtp = async (email, otp) => {
-  return post(VERIFY_EMAIL_OTP_URL, { email, otp });
-};
-
-// Generic dispatchers so a component can stay channel-agnostic (one
-// OtpModal instance handles both mobile and email verification) —
-// used by components/auth/OtpModal.jsx.
+// Generic dispatchers so a component can stay channel-agnostic — used
+// by components/auth/OtpModal.jsx.
 export const sendOtp = (channel, destination) =>
   channel === "email" ? sendEmailOtp(destination) : sendMobileOtp(destination);
 

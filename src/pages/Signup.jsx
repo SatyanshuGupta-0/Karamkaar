@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import PhoneInputModule from "react-phone-input-2";
 
@@ -46,6 +46,10 @@ const role =
     password: "",
     role,
   });
+
+  useEffect(() => {
+    localStorage.setItem('userEmail', formData.email);
+  }, [formData]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({
