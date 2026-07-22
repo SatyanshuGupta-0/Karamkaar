@@ -81,6 +81,7 @@ const role =
           "/user/register",
           formData
         );
+      console.log(response)
 
       toast.success(
         response?.message ||
