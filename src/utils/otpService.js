@@ -20,20 +20,26 @@ import { post } from "./api";
  * MOBILE FLOW: left as-is, to be revisited separately.
  */
 
-const SEND_EMAIL_OTP_URL = "/user/send-email-otp";
+// const SEND_EMAIL_OTP_URL = "/user/send-email-otp";
 const VERIFY_OTP_URL = "/user/verifyotp"; // public route
 
-const SEND_MOBILE_OTP_URL = "/user/send-mobile-otp";
-const VERIFY_MOBILE_OTP_URL = "/user/verify-mobile-otp";
+// const SEND_MOBILE_OTP_URL = "/user/send-mobile-otp";
+// const VERIFY_MOBILE_OTP_URL = "/user/verify-mobile-otp";
 
 // export const sendEmailOtp = async (email) => {
 //   const targetEmail = email || localStorage.getItem("userEmail");
 //   return post(SEND_EMAIL_OTP_URL, { email: targetEmail });
 // };
-const userEmail = localStorage.getItem("userEmail")
 export const verifyEmailOtp = async (mobile, otp) => {
-  const targetMobile = mobile;
-  return post(VERIFY_OTP_URL, { email: userEmail, mobile: targetMobile, otp });
+  const userEmail = localStorage.getItem("userEmail");
+
+  console.log("Email:", userEmail);
+
+  return post(VERIFY_OTP_URL, {
+    email: userEmail,
+    mobile,
+    otp,
+  });
 };
 
 // --- Mobile: unchanged, fix later ---
